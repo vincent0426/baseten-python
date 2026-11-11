@@ -223,6 +223,7 @@ class SandboxFileSystem:
         Args:
             path: Path of the file.
         """
+        _require(path=path)
         result = self._context.call_read(lambda api: api.get_filesystem(path=path))
         return _file_content(path, result)
 
@@ -232,6 +233,7 @@ class SandboxFileSystem:
         Args:
             path: Path of the file.
         """
+        _require(path=path)
 
         # The body is read inside the retried call, so a connection dropped
         # partway through the body is retried too.
@@ -257,6 +259,7 @@ class SandboxFileSystem:
             path: Path of the file, created or replaced.
             content: Text content to write.
         """
+        _require(path=path)
         encoded = _encoded_if_large(content)
         if encoded is not None:
             self._write_multipart(path, encoded, None)
@@ -284,6 +287,7 @@ class SandboxFileSystem:
                 file is created. An existing file keeps its mode. ``None``
                 uses the sandbox's default.
         """
+        _require(path=path)
         if len(content) > _MULTIPART_THRESHOLD:
             self._write_multipart(path, content, permissions)
             return
@@ -306,6 +310,7 @@ class SandboxFileSystem:
             permissions: Octal directory mode, such as ``"0755"``. ``None``
                 uses the sandbox's default.
         """
+        _require(path=path)
         # Retried, since the spec documents the write as idempotent.
         self._context.call_upload(
             lambda api: api.put_filesystem(
@@ -319,6 +324,7 @@ class SandboxFileSystem:
         Args:
             path: Path of the directory.
         """
+        _require(path=path)
         result = self._context.call_read(lambda api: api.get_filesystem(path=path))
         return _directory(path, result)
 
@@ -330,6 +336,7 @@ class SandboxFileSystem:
             recursive: Whether to remove a directory and everything in it.
                 A directory that is not empty fails without it.
         """
+        _require(path=path)
         # Not retried, since a repeat of a removal whose response was lost
         # would fail for a path that is already gone.
         with self._context.api() as api:
@@ -365,6 +372,7 @@ class SandboxFileSystem:
             exclude_hidden: Whether to skip hidden files and directories. The
                 sandbox defaults to true.
         """
+        _require(path=path)
         params = _find_params(type, patterns, max_results, exclude_dirs, exclude_hidden)
         result = self._context.call_read(
             lambda api: api.get_filesystem_find(path=path, params=params)
@@ -399,6 +407,7 @@ class SandboxFileSystem:
                 include in its :attr:`SandboxFileSystemGrepMatch.context`, at
                 most 20. ``None`` includes none.
         """
+        _require(path=path, query=query)
         params = _grep_params(
             query,
             case_sensitive,
@@ -436,6 +445,7 @@ class SandboxFileSystem:
             SandboxProcessWaitTimeoutError: The copy was still running when
                 the wait timed out.
         """
+        _require(source=source, destination=destination)
         started = self._process.exec(command=_copy_command(source, destination))
         finished = self._process.wait(
             identifier=started.pid, timeout=timeout, poll_interval=_COPY_POLL_INTERVAL
@@ -452,6 +462,7 @@ class SandboxFileSystem:
             path: Path of the directory to write under.
             files: Text content of each file, by path relative to *path*.
         """
+        _require(path=path)
         # Retried, since the spec documents the write as idempotent.
         self._context.call_upload(
             lambda api: api.put_filesystem_tree(
@@ -479,6 +490,7 @@ class SandboxFileSystem:
             ignore: Skips events whose full path contains any of these
                 substrings.
         """
+        _require(path=path)
         # Not retried, since a resent watch would miss changes in between.
         with self._context.api() as api:
             response = api.get_watch_filesystem(
@@ -632,6 +644,7 @@ class AsyncSandboxFileSystem:
 
     async def read(self, *, path: str) -> str:
         """Read a text file. As :meth:`SandboxFileSystem.read`."""
+        _require(path=path)
         result = await self._context.call_read(
             lambda api: api.get_filesystem(path=path)
         )
@@ -639,6 +652,7 @@ class AsyncSandboxFileSystem:
 
     async def read_bytes(self, *, path: str) -> bytes:
         """Read a file as bytes. As :meth:`SandboxFileSystem.read_bytes`."""
+        _require(path=path)
 
         async def read(api: baseten.client.sandboxapi.AsyncApiClient) -> bytes:
             response = await api.get_filesystem_raw(
@@ -654,6 +668,7 @@ class AsyncSandboxFileSystem:
 
     async def write(self, *, path: str, content: str) -> None:
         """Write a text file. As :meth:`SandboxFileSystem.write`."""
+        _require(path=path)
         encoded = _encoded_if_large(content)
         if encoded is not None:
             await self._write_multipart(path, encoded, None)
@@ -669,6 +684,7 @@ class AsyncSandboxFileSystem:
         self, *, path: str, content: bytes, permissions: str | None = None
     ) -> None:
         """Write a file from bytes. As :meth:`SandboxFileSystem.write_bytes`."""
+        _require(path=path)
         if len(content) > _MULTIPART_THRESHOLD:
             await self._write_multipart(path, content, permissions)
             return
@@ -682,6 +698,7 @@ class AsyncSandboxFileSystem:
 
     async def mkdir(self, *, path: str, permissions: str | None = None) -> None:
         """Create a directory. As :meth:`SandboxFileSystem.mkdir`."""
+        _require(path=path)
         await self._context.call_upload(
             lambda api: api.put_filesystem(
                 path=path, request=_mkdir_request(permissions)
@@ -690,6 +707,7 @@ class AsyncSandboxFileSystem:
 
     async def list(self, *, path: str) -> SandboxFileSystemDirectory:
         """List a directory. As :meth:`SandboxFileSystem.list`."""
+        _require(path=path)
         result = await self._context.call_read(
             lambda api: api.get_filesystem(path=path)
         )
@@ -697,6 +715,7 @@ class AsyncSandboxFileSystem:
 
     async def remove(self, *, path: str, recursive: bool | None = None) -> None:
         """Remove a file or directory. As :meth:`SandboxFileSystem.remove`."""
+        _require(path=path)
         with self._context.api() as api:
             await api.delete_filesystem(
                 path=path,
@@ -716,6 +735,7 @@ class AsyncSandboxFileSystem:
         exclude_hidden: bool | None = None,
     ) -> SandboxFileSystemFindResult:
         """Find files and directories by name. As :meth:`SandboxFileSystem.find`."""
+        _require(path=path)
         params = _find_params(type, patterns, max_results, exclude_dirs, exclude_hidden)
         result = await self._context.call_read(
             lambda api: api.get_filesystem_find(path=path, params=params)
@@ -734,6 +754,7 @@ class AsyncSandboxFileSystem:
         context_lines: int | None = None,
     ) -> SandboxFileSystemGrepResult:
         """Search the contents of files. As :meth:`SandboxFileSystem.grep`."""
+        _require(path=path, query=query)
         params = _grep_params(
             query,
             case_sensitive,
@@ -755,6 +776,7 @@ class AsyncSandboxFileSystem:
         timeout: timedelta | None = _DEFAULT_COPY_TIMEOUT,
     ) -> None:
         """Copy a file or directory. As :meth:`SandboxFileSystem.copy`."""
+        _require(source=source, destination=destination)
         started = await self._process.exec(command=_copy_command(source, destination))
         finished = await self._process.wait(
             identifier=started.pid, timeout=timeout, poll_interval=_COPY_POLL_INTERVAL
@@ -766,6 +788,7 @@ class AsyncSandboxFileSystem:
 
     async def write_tree(self, *, path: str, files: Mapping[str, str]) -> None:
         """Write several text files. As :meth:`SandboxFileSystem.write_tree`."""
+        _require(path=path)
         await self._context.call_upload(
             lambda api: api.put_filesystem_tree(
                 path=path,
@@ -781,6 +804,7 @@ class AsyncSandboxFileSystem:
         ignore: builtins.list[str] | None = None,
     ) -> AsyncSandboxStream[SandboxFileSystemWatchEvent]:
         """Stream changes in a directory. As :meth:`SandboxFileSystem.watch`."""
+        _require(path=path)
         with self._context.api() as api:
             response = await api.get_watch_filesystem(
                 path=_watch_path(path, recursive), params=_watch_params(ignore)
@@ -882,6 +906,13 @@ class AsyncSandboxFileSystem:
                 )
 
         return (await self._context.call_upload(send)).etag
+
+
+def _require(**values: str) -> None:
+    """Reject empty required arguments, as an empty path names the working directory."""
+    for name, value in values.items():
+        if not value:
+            raise ValueError(f"{name} is required")
 
 
 def _file_content(

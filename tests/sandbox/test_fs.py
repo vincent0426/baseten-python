@@ -244,7 +244,36 @@ def _watch_lines(*lines: str) -> httpx.Response:
     )
 
 
+# Each file system call with one required argument left empty. An empty path
+# names the working directory, so these must fail before any request.
+_EMPTY_ARGUMENTS = [
+    ("read", {"path": ""}, "path"),
+    ("read_bytes", {"path": ""}, "path"),
+    ("write", {"path": "", "content": "x"}, "path"),
+    ("write_bytes", {"path": "", "content": b"x"}, "path"),
+    ("mkdir", {"path": ""}, "path"),
+    ("list", {"path": ""}, "path"),
+    ("remove", {"path": "", "recursive": True}, "path"),
+    ("find", {"path": ""}, "path"),
+    ("grep", {"path": "", "query": "x"}, "path"),
+    ("grep", {"path": "/tmp", "query": ""}, "query"),
+    ("copy", {"source": "", "destination": "/tmp/b"}, "source"),
+    ("copy", {"source": "/tmp/a", "destination": ""}, "destination"),
+    ("write_tree", {"path": "", "files": {"a": "x"}}, "path"),
+    ("watch", {"path": ""}, "path"),
+]
+
+
 class TestSandboxFileSystem:
+    @pytest.mark.parametrize(("method", "arguments", "name"), _EMPTY_ARGUMENTS)
+    def test_rejects_empty_required_arguments(
+        self, method: str, arguments: dict[str, Any], name: str
+    ) -> None:
+        fake = _Fake(_replies(_ok()))
+        with pytest.raises(ValueError, match=f"^{name} is required$"):
+            getattr(fake.sandbox().fs, method)(**arguments)
+        assert fake.requests == []
+
     def test_reads_text_escaping_the_path(self) -> None:
         fake = _Fake(
             _replies(
@@ -713,6 +742,16 @@ class TestSandboxFileSystem:
 
 
 class TestAsyncSandboxFileSystem:
+    @pytest.mark.parametrize(("method", "arguments", "name"), _EMPTY_ARGUMENTS)
+    @pytest.mark.asyncio
+    async def test_rejects_empty_required_arguments(
+        self, method: str, arguments: dict[str, Any], name: str
+    ) -> None:
+        fake = _Fake(_replies(_ok()))
+        with pytest.raises(ValueError, match=f"^{name} is required$"):
+            await getattr(fake.async_sandbox().fs, method)(**arguments)
+        assert fake.requests == []
+
     @pytest.mark.asyncio
     async def test_reads_writes_and_lists(self) -> None:
         def handle(request: httpx.Request) -> httpx.Response:
